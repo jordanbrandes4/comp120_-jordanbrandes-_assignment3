@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Home Theatre</title>
+<style>
+body { margin:0; font-family:Arial,sans-serif; background:black; color:white; overflow-x:hidden; }
+
+/* Stars */
+.stars { position:fixed; width:100%; height:100%; top:0; left:0; z-index:-1; }
+.star { position:absolute; background:white; border-radius:50%; opacity:0.8; }
+
+/* Login */
+.login-container { display:flex; justify-content:center; align-items:center; height:100vh; }
+.login-box { background:rgba(0,0,0,0.85); padding:30px; border-radius:15px; text-align:center; width:320px; }
+input { width:90%; padding:10px; margin:10px 0; border:none; border-radius:5px; }
+button { padding:10px 20px; background:#1e3a8a; border:none; color:white; cursor:pointer; border-radius:5px; }
+button:hover { background:#2563eb; }
+.login-box p { font-size:14px; color:#93c5fd; cursor:pointer; margin:5px 0; }
+
+/* Navbar */
+.navbar { position:fixed; top:0; width:100%; background:black; padding:15px; text-align:center; z-index:1; }
+.navbar button { margin:0 5px; }
+
+/* Title */
+.title { text-align:center; margin-top:80px; }
+
+/* Tabs */
+.tab-content { display:none; padding-top:50px; text-align:center; }
+.active { display:block; }
+.gallery img { width:150px; margin:10px; border-radius:10px; cursor:pointer; }
+.searchBar { width:200px; margin:10px auto 20px auto; display:block; padding:8px; border-radius:8px; border:none; text-align:center; }
+
+/* Sidebar */
+.sidebar {
+    position:fixed; right:-350px; top:0; width:300px; height:100%; background:#111; padding:20px; transition:0.3s; z-index:2;
+    display:none;
+}
+.sidebar.active { right:0; display:block; }
+.sidebar img { width:100%; border-radius:8px; }
+.sidebar button { margin-top:10px; width:100%; }
+
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<!-- Login -->
+<div class="login-container" id="loginContainer" style="flex-direction: column;">
+    <h1 style="text-align:center; margin-bottom:100px;">🎬 Your Home Theatre 🎬</h1>
+    <div class="login-box">
+        <h2>Login</h2>
+        <input id="username" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <p onclick="alert('Sign Up clicked')">Sign Up</p>
+        <p onclick="alert('Forgot Password clicked')">Forgot Password</p>
+        <p onclick="loginAsCritic()">Sign Up as Critic</p>
+    </div>
+</div>
+
+<!-- Navbar -->
+<div class="navbar" id="navbar" style="display:none;">
+    <button onclick="openTab('myMovies')">My Movies</button>
+    <button onclick="openTab('watchLater')">Watch Later</button>
+    <button onclick="openTab('recommended')">Recommended</button>
+    <button onclick="openTab('movies2026')">2026 Movies</button>
+    <button onclick="openTab('feedback')">Feedback</button>
+    <button onclick="openTab('admin')">Admin</button> <!-- ADMIN TAB ADDED -->
+    <button onclick="logout()">Logout</button>
+</div>
+
+<h1 class="title" id="title" style="display:none;">🎬 Your Home Theatre 🎬</h1>
+
+<div id="myMovies" class="tab-content"></div>
+<div id="watchLater" class="tab-content"></div>
+<div id="recommended" class="tab-content"></div>
+<div id="movies2026" class="tab-content"></div>
+<div id="feedback" class="tab-content"></div>
+<div id="admin" class="tab-content"></div> <!-- ADMIN TAB CONTENT -->
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <h3 id="movieTitle"></h3>
+    <img id="movieImg">
+    <button id="actionBtn"></button>
+    <button onclick="closeSidebar()">Close</button>
+</div>
+
+<script>
+// ⭐ Stars on login page
+for(let i=0;i<120;i++){
+    let star=document.createElement("div");
+    star.className="star";
+    let size=Math.random()*3+1;
+    star.style.width=star.style.height=size+"px";
+    star.style.top=Math.random()*100+"%";
+    star.style.left=Math.random()*100+"%";
+    document.getElementById("stars").appendChild(star);
+}
+
+let myMoviesList = [];
+let watchLaterList = [];
+let isCritic = false;
+let reviews = {};
+let feedbackList = [];
+
+// ADMIN DATABASES
+const adminCreds = {username:"jordanbrandes", password:"Josh1234"};
+let adminLoggedIn = false;
+let viewersDB = [
+    {username:"viewer1", password:"pass1"},
+    {username:"viewer2", password:"pass2"},
+];
+let criticsDB = [
+    {username:"critic1", password:"criticpass1"},
+    {username:"critic2", password:"criticpass2"},
+];
+
+const fallbackMovies = [
+    {title:"The Dark Knight (2008)", img:"https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg"},
+    {title:"Fight Club (1999)", img:"https://image.tmdb.org/t/p/w500/bptfVGEQuv6vDTIMVCHjJ9Dz8PX.jpg"},
+    {title:"Joker (2019)", img:"https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg"},
+    {title:"The Matrix (1999)", img:"https://image.tmdb.org/t/p/w500/aOIuZAjPaRIE6CMzbazvcHuHXDc.jpg"},
+    {title:"Pulp Fiction (1994)", img:"https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg"},
+    {title:"The Shawshank Redemption (1994)", img:"https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg"},
+    {title:"The Godfather (1972)", img:"https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg"},
+    {title:"The Godfather Part II (1974)", img:"https://image.tmdb.org/t/p/w500/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg"},
+    {title:"The Avengers (2012)", img:"https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg"},
+    {title:"Avengers: Endgame (2019)", img:"https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg"},
+    {title:"Titanic (1997)", img:"https://image.tmdb.org/t/p/w500/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg"},
+    {title:"Gladiator (2000)", img:"https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg"},
+    {title:"The Lion King (1994)", img:"https://image.tmdb.org/t/p/w500/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg"},
+    {title:"Spider-Man: No Way Home (2021)", img:"https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg"},
+    {title:"Doctor Strange (2016)", img:"https://image.tmdb.org/t/p/w500/uGBVj3bEbCoZbDjjl9wTxcygko1.jpg"},
+    {title:"Black Panther (2018)", img:"https://image.tmdb.org/t/p/w500/uxzzxijgPIY7slzFvMotPv8wjKA.jpg"},
+    {title:"Iron Man (2008)", img:"https://image.tmdb.org/t/p/w500/78lPtwv72eTNqFW9COBYI0dWDJa.jpg"},
+    {title:"Captain America: The First Avenger (2011)", img:"https://image.tmdb.org/t/p/w500/vSNxAJTlD0r02V9sPYpOjqDZXUK.jpg"},
+    {title:"The Social Network (2010)", img:"https://image.tmdb.org/t/p/w500/n0ybibhJtQ5icDqTp8eRytcIHJx.jpg"},
+    {title:"Parasite (2019)", img:"https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg"},
+    {title:"The Wolf of Wall Street (2013)", img:"https://image.tmdb.org/t/p/w500/sOxr33wnRuKazR9ClHek73T8qnK.jpg"}
+];
+
+const movies2026 = [
+    {title:"The Odyssey (2026)", img:"https://image.tmdb.org/t/p/w500/8g18jFHCLXAH5X6u6nKKSAFGy3g.jpg"},
+    {title:"Supergirl: Woman of Tomorrow (2026)", img:"https://image.tmdb.org/t/p/w500/qWQSnedj0LCUjWNp9fLcMtfgadp.jpg"},
+    {title:"The Mandalorian & Grogu (2026)", img:"https://image.tmdb.org/t/p/w500/5YTK2DCcSGT5W2k8yVqcpYW7wAI.jpg"},
+    {title:"Toy Story 5 (2026)", img:"https://image.tmdb.org/t/p/w500/wWba3TaojhK7NdycRhoQpsG0FaH.jpg"},
+    {title:"Avengers: Doomsday (2026)", img:"https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg"},
+    {title:"Spider-Man 4 (2026)", img:"https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg"},
+    {title:"Street Fighter (2026)", img:"https://image.tmdb.org/t/p/w500/i47IUSsN126K11JUzqQIOi1Mg1M.jpg"},
+    {title:"Project Hail Mary (2026)", img:"https://image.tmdb.org/t/p/w500/rAiYTfKGqDCRIIqo664sY9XZIvQ.jpg"},
+    {title:"The Batman Part II (2026)", img:"https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg"},
+    {title:"Blade (2026)", img:"https://image.tmdb.org/t/p/w500/uxzzxijgPIY7slzFvMotPv8wjKA.jpg"},
+    {title:"Sherlock Holmes 3 (2026)", img:"https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg"},
+    {title:"Jumanji 3 (2026)", img:"https://image.tmdb.org/t/p/w500/RYMX2wcKCBAr24UyPD7xwmjaTn.jpg"},
+    {title:"Frozen 3 (2026)", img:"https://image.tmdb.org/t/p/w500/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg"},
+    {title:"Minions 3 (2026)", img:"https://image.tmdb.org/t/p/w500/9GBhzXMFjgcZ3FdR9w3bUMMTps5.jpg"},
+    {title:"Shrek 5 (2026)", img:"https://image.tmdb.org/t/p/w500/2v5eIMz9j0d9Rr5y2KkY8zJfHn.jpg"},
+    {title:"Ice Age 6 (2026)", img:"https://image.tmdb.org/t/p/w500/yrpPYKijwdMHyTGIOd1iK1h0Xno.jpg"}
+];
+
+function login(){
+    isCritic = false;
+    document.getElementById("loginContainer").style.display="none";
+    document.getElementById("navbar").style.display="block";
+    document.getElementById("title").style.display="block";
+    closeSidebar();
+    openTab('myMovies');
+}
+
+function loginAsCritic(){
+    isCritic = true;
+    document.getElementById("loginContainer").style.display="none";
+    document.getElementById("navbar").style.display="block";
+    document.getElementById("title").style.display="block";
+    closeSidebar();
+    openTab('myMovies');
+}
+
+function logout(){
+    document.getElementById("loginContainer").style.display="flex";
+    document.getElementById("navbar").style.display="none";
+    document.getElementById("title").style.display="none";
+    myMoviesList = [];
+    watchLaterList = [];
+    closeSidebar();
+    document.querySelectorAll(".tab-content").forEach(t=>{
+        t.innerHTML="";
+        t.classList.remove("active");
+    });
+    adminLoggedIn=false; // reset admin if logging out
+}
+
+// ADMIN LOGIN/LOGOUT FUNCTIONS
+function adminLogin(){
+    let user=document.getElementById("adminUser").value;
+    let pass=document.getElementById("adminPass").value;
+    if(user===adminCreds.username && pass===adminCreds.password){
+        adminLoggedIn = true;
+        openTab('admin');
+    } else {
+        document.getElementById("adminMsg").innerText="Invalid admin credentials";
+    }
+}
+
+function adminLogout(){
+    adminLoggedIn=false;
+    openTab('admin'); // back to login form
+}
+
+// OPEN TAB FUNCTION (MODIFIED TO HANDLE ADMIN)
+function openTab(tabId){
+    closeSidebar();
+    document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+    let tab=document.getElementById(tabId);
+    tab.classList.add("active");
+
+    if(tabId === 'feedback'){
+        tab.innerHTML = `
+            <h2>Feedback</h2>
+            <textarea id="feedbackText" placeholder="Suggestions..." style="width:80%;height:100px;"></textarea><br>
+            <button onclick="submitFeedback()">Submit</button>
+            <div id="feedbackList"></div>
+        `;
+        return;
+    }
+
+    if(tabId==='admin'){
+        if(!adminLoggedIn){
+            tab.innerHTML = `
+                <h2>Admin Login</h2>
+                <input id="adminUser" placeholder="Username"><br>
+                <input id="adminPass" type="password" placeholder="Password"><br>
+                <button onclick="adminLogin()">Login</button>
+                <p id="adminMsg" style="color:red;"></p>
+            `;
+        } else {
+            let viewerList = viewersDB.map(u=>`<li>${u.username} / ${u.password}</li>`).join("");
+            let criticList = criticsDB.map(u=>`<li>${u.username} / ${u.password}</li>`).join("");
+            let allFeedback = feedbackList.map(f=>`<li>${f}</li>`).join("");
+            tab.innerHTML = `
+                <h2>Admin Dashboard</h2>
+                <h3>Viewer Accounts</h3><ul>${viewerList}</ul>
+                <h3>Critic Accounts</h3><ul>${criticList}</ul>
+                <h3>Feedback</h3><ul>${allFeedback}</ul>
+                <button onclick="adminLogout()">Logout</button>
+            `;
+        }
+        return;
+    }
+
+    // Existing code to render other tabs...
+    tab.innerHTML = `<input class="searchBar" placeholder="Search..." oninput="filterMovies('${tabId}', this.value)"><div class="gallery"></div>`;
+    let gallery = tab.querySelector(".gallery");
+    let list =
+        tabId==='recommended' ? fallbackMovies :
+        tabId==='movies2026' ? movies2026 :
+        tabId==='watchLater' ? watchLaterList :
+        myMoviesList;
+
+    if(tabId === 'movies2026'){
+        gallery.innerHTML = "";
+        list.forEach((movie,index)=>{
+            let div=document.createElement("div");
+            div.style.display="inline-block";
+            div.style.width="150px";
+            div.style.height="225px";
+            div.style.margin="10px";
+            div.style.background="#222";
+            div.style.borderRadius="10px";
+            div.style.textAlign="center";
+            div.style.padding="10px";
+            div.innerHTML=`<div>${movie.title}</div><div style="color:#93c5fd;">COMING 2026</div>`;
+            div.onclick=()=>showSidebar(movie,index,false);
+            gallery.appendChild(div);
+        });
+    } else {
+        renderGallery(list, gallery, tabId==='myMovies' || tabId==='watchLater');
+    }
+}
+
+function submitFeedback(){
+    let text=document.getElementById("feedbackText").value;
+    if(!text) return;
+    feedbackList.push(text);
+    document.getElementById("feedbackList").innerHTML = feedbackList.map(f=>`<p>• ${f}</p>`).join("");
+}
+
+function renderGallery(list, gallery, isOwnedList) {
+    gallery.innerHTML = "";
+    list.forEach((movie, index) => {
+        let div = document.createElement("div");
+        div.style.display = "inline-block";
+        div.style.width = "150px";
+        div.style.margin = "10px";
+        div.style.textAlign = "center";
+
+        let img = document.createElement("img");
+        img.src = movie.img;
+        img.alt = movie.title;
+        img.style.width = "150px";
+        img.style.borderRadius = "10px";
+        img.style.cursor = "pointer";
+
+        let titleDiv = document.createElement("div");
+        titleDiv.innerText = movie.title;
+
+        div.appendChild(img);
+        div.appendChild(titleDiv);
+
+        div.onclick = () => showSidebar(movie, index, isOwnedList);
+        gallery.appendChild(div);
+    });
+}
+
+function showSidebar(movie,index,isOwnedList){
+    let sidebar=document.getElementById("sidebar");
+
+    // ✅ CLEAR OLD SIDEBAR CONTENT (fixes review bug)
+    while(sidebar.children.length > 4){
+        sidebar.removeChild(sidebar.lastChild);
+    }
+
+    sidebar.classList.add("active");
+    sidebar.style.display="block";
+    document.getElementById("movieTitle").innerText=movie.title;
+    document.getElementById("movieImg").src=movie.img;
+
+    let btn=document.getElementById("actionBtn");
+
+    if(isOwnedList){
+        btn.innerText="Remove";
+        btn.onclick=()=>{ 
+            if(watchLaterList.includes(movie)){ watchLaterList.splice(index,1); openTab('watchLater'); }
+            else{ myMoviesList.splice(index,1); openTab('myMovies'); }
+            closeSidebar();
+        };
+    } else {
+        btn.innerText="Add to My Movies";
+        btn.onclick=()=>{ myMoviesList.push(movie); closeSidebar(); };
+    }
+
+    // ✅ Add to Watch Later button (clean + consistent)
+    let watchBtn=document.createElement("button");
+    watchBtn.innerText="Add to Watch Later";
+    watchBtn.onclick=()=>{ 
+        watchLaterList.push(movie); 
+        closeSidebar(); 
+    };
+    sidebar.appendChild(watchBtn);
+
+    // ✅ Show review ONLY for this movie
+    if(reviews[movie.title]){
+        let r=reviews[movie.title];
+        let div=document.createElement("div");
+        div.innerHTML=`<p>Rating: ${"★".repeat(r.rating)}${"☆".repeat(10-r.rating)}</p><p>${r.text}</p>`;
+        sidebar.appendChild(div);
+    }
+
+    if(isCritic){
+        let box=document.createElement("textarea");
+
+        let ratingStars=document.createElement("div");
+        ratingStars.style.cursor="pointer";
+        ratingStars.style.fontSize="20px";
+        ratingStars.innerHTML="☆☆☆☆☆☆☆☆☆☆";
+
+        let currentRating=0;
+        ratingStars.addEventListener("click",(e)=>{
+            const rect=ratingStars.getBoundingClientRect();
+            const starWidth=rect.width/10;
+            const clickedStar=Math.ceil((e.clientX-rect.left)/starWidth);
+            currentRating=clickedStar;
+            ratingStars.innerHTML="★".repeat(clickedStar)+"☆".repeat(10-clickedStar);
+        });
+
+        let submit=document.createElement("button");
+        submit.innerText="Submit Review";
+        submit.onclick=()=>{
+            reviews[movie.title]={text:box.value,rating:currentRating};
+            closeSidebar();
+        };
+
+        sidebar.appendChild(box);
+        sidebar.appendChild(ratingStars);
+        sidebar.appendChild(submit);
+    } else {
+        let viewBtn=document.createElement("button");
+        viewBtn.innerText="View Reviews";
+        viewBtn.onclick=()=>{
+            if(reviews[movie.title]){
+                let r=reviews[movie.title];
+                alert(`Rating: ${r.rating}/10\n\n${r.text}`);
+            } else {
+                alert("No reviews yet.");
+            }
+        };
+        sidebar.appendChild(viewBtn);
+    }
+}
+
+function closeSidebar(){
+    let sidebar=document.getElementById("sidebar");
+    sidebar.classList.remove("active");
+    sidebar.style.display="none";
+}
+
+function filterMovies(tabId, value){
+    let list=tabId==='recommended'?fallbackMovies:tabId==='movies2026'?movies2026:tabId==='watchLater'?watchLaterList:myMoviesList;
+    let gallery=document.getElementById(tabId).querySelector(".gallery");
+    let filtered=list.filter(m=>m.title.toLowerCase().includes(value.toLowerCase()));
+    renderGallery(filtered,gallery,tabId==='myMovies' || tabId==='watchLater');
+}
+</script>
+</body>
+</html>
